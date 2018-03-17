@@ -1,15 +1,15 @@
 EXPORTS
     _nm__s_float @1 DATA
     arr_position @2 DATA
-    dtw_free @3
-    dtw_genMatrix @4
-    dtw_onBangMsg @5
-    dtw_onSet_A @6
-    dtw_onSet_B @7
-    dtw_resetCount @8
-    dtw_setMods @9
-    dynamicTW_new @10
-    dynamicTW_setup @11
+    checkStorage @3
+    dtw_free @4
+    dtw_genMatrix @5
+    dtw_onBangMsg @6
+    dtw_onSet_A @7
+    dtw_onSet_B @8
+    dynamicTW_new @9
+    dynamicTW_setup @10
+    fileReader @11
     leastCostPath @12
     recording_array @13 DATA
     tempArr1 @14 DATA

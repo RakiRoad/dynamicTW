@@ -1,7 +1,10 @@
 #include "m_pd.h"
 #include <math.h>
-#define SIZE_ARRAY 5
+#include <stdio.h>
+#include <stdlib.h>
 
+#define SIZE_ARRAY 5
+#define TEST_SIZE 100
 
 static t_class *dynamicTW_class; //handle for the class
 
@@ -12,6 +15,7 @@ int tempArr1[SIZE_ARRAY] = {1, 3, 6, 11, 9};
 int tempArr2[SIZE_ARRAY] = {7, 7, 9, 2, 8};
 int twoD[SIZE_ARRAY][SIZE_ARRAY] = {0};
 
+/* struct to hold cost of arrival from left, bottom, and diagonal */
 typedef struct _leftbottom{
     int left;
     int bottom;
@@ -21,9 +25,7 @@ typedef struct _leftbottom{
 typedef struct _dynamicTW{
     t_object x_obj;
 
-    //following will be placeholder from tutorial
-    t_int init_count, current_count;
-    t_int mod_A, mod_B; //prob will need
+    float testArray[TEST_SIZE];
 
     t_inlet *in_mod_A, *in_mod_B;
 
@@ -33,19 +35,28 @@ typedef struct _dynamicTW{
 
 }t_dynamicTW; //typedef name
 
-
-
-/*======================================================================*/
-void dtw_setMods(t_dynamicTW *x, t_floatarg f1, t_floatarg f2){
-    x->mod_A = (f1 <= 0)? 1:f1;
-    x->mod_B = (f2 <= 0)? 1:f2;
+void checkStorage(t_dynamicTW *x){ //check if values being stored correctly
+    int i;
+    post("in check storage");
+    for(i = 0; i < TEST_SIZE; i++){
+        post("%f", x->testArray[i]);
+    }
 }
 
-void dtw_resetCount(t_dynamicTW *x){
-    x->init_count = 0;
-    x->current_count = x->init_count;
+void fileReader(t_dynamicTW *x, char *path){
+    //char const* const fileName = "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input.txt" ;/* should check that argc > 1 */
+    FILE* file = fopen(path, "r"); /* should check the result */
+    char line[256];
+    int i = 0;
+    while (fgets(line, sizeof(line), file)) {
+        /* note that fgets don't strip the terminating \n, checking its
+           presence would allow to handle lines longer that sizeof(line) */
+        //post("%s", line);
+        x->testArray[i] = atof(line);
+        i++;
+    }
+    fclose(file);
 }
-/*======================================================================*/
 /*
  1. Create a 2d array for our matrix
  2. fill in the left column and bottom row with our 2 signals
@@ -226,7 +237,9 @@ void dtw_onBangMsg(t_dynamicTW *x){
         post("ARRAY TEST: %f", x->signal[SIZE_ARRAY - 1]);
     }
     */
-    dtw_genMatrix(x);
+    //dtw_genMatrix(x);
+    fileReader(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input.txt");
+    checkStorage(x);
 }
 
 void dtw_onSet_A(t_dynamicTW *x, t_floatarg f){  /*function that gets called when an input is received */
@@ -253,9 +266,6 @@ void dtw_onSet_B(t_dynamicTW *x, t_floatarg f){ /*function that gets called when
 //initializer for the class
 void *dynamicTW_new(t_floatarg f1, t_floatarg f2){ //parenth contains creation arg. temp stuff will replaced with arrays
     t_dynamicTW *x = (t_dynamicTW *)pd_new(dynamicTW_class); //initialize struct of type dtw
-
-    dtw_resetCount(x); //temp
-    dtw_setMods(x,f1,f2); //temp
 
     x->in_mod_A = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_float, gensym("ratio_A"));
     x->in_mod_B = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_float, gensym("ratio_B"));
