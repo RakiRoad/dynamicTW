@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
 #define SIZE_ARRAY 5
 #define TEST_SIZE 100
 
@@ -17,20 +18,27 @@ int twoD[SIZE_ARRAY][SIZE_ARRAY] = {0};
 
 /* struct to hold cost of arrival from left, bottom, and diagonal */
 typedef struct _leftbottom{
-    int left;
-    int bottom;
-    int diag;
+    float left;
+    float bottom;
+    float diag;
 }leftBD; //typedef name
 
 typedef struct _dynamicTW{
     t_object x_obj;
 
+    int flag; //differentiates if how result of lcp is stored
+    int match; //if 0 signal does not match else matches
     float testArray[TEST_SIZE];
+    float storedSignalOne[SIZE_ARRAY];
+    float storedSignalTwo[SIZE_ARRAY];
 
     t_inlet *in_mod_A, *in_mod_B;
 
     float signal[SIZE_ARRAY];
-    int initMatrix[SIZE_ARRAY][SIZE_ARRAY];
+    float lcpValue;
+    float compareValue;
+
+    float initMatrix[SIZE_ARRAY][SIZE_ARRAY];
     leftBD costValues[SIZE_ARRAY-1][SIZE_ARRAY-1];
 
 }t_dynamicTW; //typedef name
@@ -39,11 +47,34 @@ void checkStorage(t_dynamicTW *x){ //check if values being stored correctly
     int i;
     post("in check storage");
     for(i = 0; i < TEST_SIZE; i++){
-        post("%f", x->testArray[i]);
+        post("Signal 1: %f", x->storedSignalOne[i]);
+        post("Signal 2: %f", x->storedSignalTwo[i]);
     }
 }
 
-void fileReader(t_dynamicTW *x, char *path){
+void signalMatch(t_dynamicTW *x){
+    if(x->compareValue <= x->lcpValue){
+        x->match = 1;
+        /* add code to trigger effect */
+    }
+    else{
+        x->match =0;
+    }
+}
+void reverseArray(t_dynamicTW *x){
+    int i, j;
+    i = SIZE_ARRAY - 1;
+    j = 0;
+    while(i > j){
+        float temp = x->signal[i];
+        x->signal[i] = x->signal[j];
+        x->signal[j] = temp;
+        i--;
+        j++;
+    }
+}
+
+void fileReader1(t_dynamicTW *x, char *path){
     //char const* const fileName = "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input.txt" ;/* should check that argc > 1 */
     FILE* file = fopen(path, "r"); /* should check the result */
     char line[256];
@@ -52,10 +83,31 @@ void fileReader(t_dynamicTW *x, char *path){
         /* note that fgets don't strip the terminating \n, checking its
            presence would allow to handle lines longer that sizeof(line) */
         //post("%s", line);
-        x->testArray[i] = atof(line);
+        x->storedSignalOne[i] = atof(line) * 100; // !!!!!!!!!!!!!!!!!!!!! REMOVE 1000
         i++;
     }
     fclose(file);
+}
+void fileReader2(t_dynamicTW *x, char *path){
+    //char const* const fileName = "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input.txt" ;/* should check that argc > 1 */
+    FILE* file = fopen(path, "r"); /* should check the result */
+    char line[256];
+    int i = 0;
+    while (fgets(line, sizeof(line), file)) {
+        /* note that fgets don't strip the terminating \n, checking its
+           presence would allow to handle lines longer that sizeof(line) */
+        //post("%s", line);
+        x->storedSignalTwo[i] = atof(line) * 100; // !!!!!!!!!!!!!!!!!!!!!!!!!!! REMOVE 1000
+        i++;
+    }
+    fclose(file);
+}
+
+void replaceSignal2(t_dynamicTW *x){
+    int i;
+    for(i = 0; i < SIZE_ARRAY; i++){
+        x->storedSignalTwo[i] = x->signal[i];
+    }
 }
 /*
  1. Create a 2d array for our matrix
@@ -65,25 +117,25 @@ void fileReader(t_dynamicTW *x, char *path){
 */
 
 void leastCostPath(t_dynamicTW *x){
-    int temp, min;
-    int result = 0;
+    float temp, min;
+    float result = 0;
     int i = SIZE_ARRAY - 2;
     int j = SIZE_ARRAY - 2;
 
-    post("starting point value left is %d", x->costValues[i][j].left);
-    post("starting point value bottom is %d", x->costValues[i][j].bottom);
-    post("starting point value diag is %d", x->costValues[i][j].diag);
+    post("starting point value left is %f", x->costValues[i][j].left);
+    post("starting point value bottom is %f", x->costValues[i][j].bottom);
+    post("starting point value diag is %f", x->costValues[i][j].diag);
 
     while(i >= 0 && j >= 0){
-        int checkLeft = x->costValues[i][j].left;
-        int checkBottom = x->costValues[i][j].bottom;
-        int checkDiagonal = x->costValues[i][j].diag;
+        float checkLeft = x->costValues[i][j].left;
+        float checkBottom = x->costValues[i][j].bottom;
+        float checkDiagonal = x->costValues[i][j].diag;
 
         temp = (checkLeft < checkBottom) ? checkLeft : checkBottom;
         min = (checkDiagonal < temp) ? checkDiagonal : temp;
 
         result += min;
-        post("min value is %d", min);
+        post("min value is %f", min);
 
         if(min == checkDiagonal){
             if (i-1 < 0 && j-1 < 0){
@@ -122,8 +174,13 @@ void leastCostPath(t_dynamicTW *x){
         }
 
     }
-
-    post("least cost path is %d", result);
+    if(x->flag == 0){
+        x->lcpValue = result;
+    }
+    else{
+        x->compareValue = result;
+    }
+    post("least cost path is %f", result);
 
 }
 //Currently testing if I can populate 2d array
@@ -131,40 +188,43 @@ void leastCostPath(t_dynamicTW *x){
 void dtw_genMatrix(t_dynamicTW *x){
     int i;
     for(i = 0; i<SIZE_ARRAY; i++){
-        x->initMatrix[i][0] = tempArr1[i]; //populate the first column
-        x->initMatrix[0][i] = tempArr2[i]; //populate the last row
+        x->initMatrix[i][0] = x->storedSignalOne[i]; //populate the first column with signal 1 data points
+        //post("at current column %d the value is %f and stored value is %f", i, x->initMatrix[i][0], x->storedSignalOne[i]);
+        x->initMatrix[0][i] = x->storedSignalTwo[i]; //populate the last row with signal 2 data points
+        //post("at current column %d the value is %f and stored value is %f", i, x->initMatrix[0][i], x->storedSignalTwo[i]);
     }
 
-    /*  //printing left column for signal 1
-    int j;
-    for (j = 0; j <SIZE_ARRAY;j++){
-        post("left column at index %d: %d", j, x->initMatrix[j][0]);
-    }
+    /*  ############################### SOME THING IS HAPPENING IN BETWEEN WHERE THE VALUES GET MESSED UP ##################### */
+//    //printing left column for signal 1
+//    int j;
+//    for (j = 0; j <SIZE_ARRAY;j++){
+//        post("left column at index %d: %f", j, x->initMatrix[j][0]);
+//    }
+//
+//    int k;  //printing bottom values for signal 2
+//    for(k = 0; k < SIZE_ARRAY; k++){
+//        post("bottom row at index %d: %f", k, x->initMatrix[0][k]);
+//    }
 
-    int k;  //printing bottom values for signal 2
-    for(k = 0; k < SIZE_ARRAY; k++){
-        post("bottom row at index %d: %d", k, x->initMatrix[0][k]);
-    }
-    */
 
 
     int z, y;
     for(z = 1; z< SIZE_ARRAY; z++){
-        for(y=1; y<SIZE_ARRAY; y++){
-            int difference = tempArr1[z] - tempArr2[y];
-            x->initMatrix[z][y] = (int)pow(difference, 2); //finding the euclidian distance
+        for(y = 1; y<SIZE_ARRAY; y++){
+            float difference = x->storedSignalOne[z] - x->storedSignalTwo[y];
+            x->initMatrix[z][y] = (float)pow(difference, 2); //finding the euclidian distance
         }
     }
 
 
     //just prints out the values
-    int xx, yy;
-    for(xx = 1; xx< SIZE_ARRAY; xx++){
-        for(yy=1; yy<SIZE_ARRAY; yy++){
-            post("at row = %d and column = %d value is: %d", xx, yy, x->initMatrix[xx][yy]);
-        }
-    }
-    post(" ");
+//    int xx, yy;
+//    for(xx = 1; xx< SIZE_ARRAY; xx++){
+//        for(yy=1; yy<SIZE_ARRAY; yy++){
+//            post("at row = %d and column = %d value is: %f", xx, yy, x->initMatrix[xx][yy]);
+//        }
+//    }
+//    post(" ");
 
     //testing values for left bottom values
     int q, r;
@@ -212,15 +272,15 @@ void dtw_genMatrix(t_dynamicTW *x){
 
     //testing if values are correct
 
-    int qq, rr;
-    for(qq = 0; qq< SIZE_ARRAY-1; qq++){
-        for(rr=0; rr<SIZE_ARRAY-1; rr++){
-            post("value at row %d and column %d for left is %d: ", qq, rr, x->costValues[qq][rr].left);
-            post("value at row %d and column %d for bottom is %d: ", qq, rr, x->costValues[qq][rr].bottom);
-            post("value at row %d and column %d for diag is %d: ", qq, rr, x->costValues[qq][rr].diag);
-            post(" ");
-        }
-    }
+//    int qq, rr;
+//    for(qq = 0; qq< SIZE_ARRAY-1; qq++){
+//        for(rr=0; rr<SIZE_ARRAY-1; rr++){
+//            post("value at row %d and column %d for left is %f: ", qq, rr, x->costValues[qq][rr].left);
+//            post("value at row %d and column %d for bottom is %f: ", qq, rr, x->costValues[qq][rr].bottom);
+//            post("value at row %d and column %d for diag is %f: ", qq, rr, x->costValues[qq][rr].diag);
+//            post(" ");
+//        }
+//    }
 
 
     leastCostPath(x); //finds least cost path
@@ -228,34 +288,43 @@ void dtw_genMatrix(t_dynamicTW *x){
 
 /*what to do when bang is hit*/
 void dtw_onBangMsg(t_dynamicTW *x){
-    /*
-    post("*[dtw ] is set to go");
-    if(x->signal[SIZE_ARRAY - 1] == 0){
-        post("NONE");
-    }
-    else{
-        post("ARRAY TEST: %f", x->signal[SIZE_ARRAY - 1]);
-    }
-    */
-    //dtw_genMatrix(x);
-    fileReader(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input.txt");
-    checkStorage(x);
+
+//    post("*[dtw ] is set to go");
+//    if(x->signal[SIZE_ARRAY - 1] == 0){
+//        post("NONE");
+//    }
+//    else{
+//        post("ARRAY TEST: %f", x->signal[SIZE_ARRAY - 1]);
+//    }
+    x->flag = 0; //makes so that lcp value gets stored in lcpValue
+
+    fileReader1(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input1.txt"); // read signal 1
+    fileReader2(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input2.txt"); // read signal 2
+    dtw_genMatrix(x); //perform DTW
+
 }
 
 void dtw_onSet_A(t_dynamicTW *x, t_floatarg f){  /*function that gets called when an input is received */
     post("Number A: %f sending to array",f);
     //recording_array[0] = f;
-                                        /*=======================REVERSE THIS=================================*/
+
     if (x->signal[SIZE_ARRAY - 1] == 0 && arr_position <= SIZE_ARRAY){ //checks if array is filled. If not then store incoming value to next index
         x->signal[arr_position] = f;
         arr_position++;
     }
+
     else{                                 //If array is filled shift all values by 1 index and store at beginning of array
         int i;
         for (i = 9; i > 0; i--){
             x->signal[i]=x->signal[i-1];
         }
         x->signal[0] = f;
+        reverseArray(x); // works
+        //post("Value at last index is %f", x->signal[SIZE_ARRAY-1]);
+        //replaceSignal2(x); //replaces the value in signal 2
+        x->flag = 1; //makes it so that LCP result is stored in compared Value;
+        //dtw_genMatrix(x); //performs dtw
+        //signalMatch(x); //checks is the signal is correct if it is trigger effect
     }
 }
 
