@@ -11,9 +11,12 @@ static t_class *dynamicTW_class; //handle for the class
 
 float recording_array[SIZE_ARRAY] = {0};
 int arr_position = SIZE_ARRAY - 1;
-float saveValue = 0.0;
-int triggerGlobal = 0;
+float saveValue = 1.0;
 
+int tempArr1[SIZE_ARRAY] = {1, 3, 6, 11, 9};
+int tempArr2[SIZE_ARRAY] = {7, 7, 9, 2, 8};
+int twoD[SIZE_ARRAY][SIZE_ARRAY] = {0};
+int triggerGlobal = 0;
 /* struct to hold cost of arrival from left, bottom, and diagonal */
 typedef struct _leftbottom{
     float left;
@@ -52,11 +55,12 @@ void checkStorage(t_dynamicTW *x){ //check if values being stored correctly
 
 void signalMatch(t_dynamicTW *x){
     float tenup = saveValue + (.0125*saveValue);
+    float tendown = saveValue - (.0125*saveValue);
     float zeroValue = 0.00;
     if(x->compareValue <= tenup && x->compareValue >= zeroValue){
         x->match = 1;
         /* add code to trigger effect */
-        post("Incoming Signal Matches Stored Signal. compareValue is %f and lcpValue is %f", x->compareValue, saveValue);
+        post("Incoming Signal Matches Stored Signal. comparValue is %f and lcpValue is %f", x->compareValue, saveValue);
     }
     else{
         x->match = 0;
@@ -111,7 +115,6 @@ void replaceSignal2(t_dynamicTW *x){
         x->storedSignalTwo[i] = x->signal[i];
     }
 }
-
 /*
  1. Create a 2d array for our matrix
  2. fill in the left column and bottom row with our 2 signals
@@ -180,8 +183,8 @@ void leastCostPath(t_dynamicTW *x){
     if(x->flag == 0){
 //        x->lcpValue = result;
 //        post("lcpValue: least cost path is %f", x->lcpValue);
-        saveValue += result;
-        post("storing to saveValue: current saveValue is %f", saveValue);
+        saveValue = result;
+        post("saveValue: least cost path is %f", saveValue);
     }
     else if (x->flag == 1){
         x->compareValue = result;
@@ -305,17 +308,10 @@ void dtw_onBangMsg(t_dynamicTW *x){
 //    }
     x->match = 0;
     x->flag = 0; //makes so that lcp value gets stored in lcpValue
-    saveValue = 0.0;
     arr_position = SIZE_ARRAY - 1;
     fileReader1(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input1.txt"); // read signal 1
     fileReader2(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input2.txt"); // read signal 2
     dtw_genMatrix(x); //perform DTW
-    fileReader2(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input3.txt");
-    dtw_genMatrix(x);
-    fileReader2(x, "C:\\Users\\Raki\\Documents\\GitHub\\dynamicTW\\TB\\input4.txt");
-    dtw_genMatrix(x);
-    saveValue = saveValue / 3;
-    post("saveValue: Least Cost Path is %f", saveValue);
     //post("does it get here?");
     triggerGlobal = 1;
 
@@ -334,32 +330,29 @@ void dtw_onSet_A(t_dynamicTW *x, t_floatarg f){  /*function that gets called whe
     //recording_array[0] = f;
 
     if(x->match == 1){
-        post("Match has been detected. Freezing Program!");
         while(1){
-            /*freezes the program*/
+            /*do nothing*/
         }
     }
-    else if(x->match == 0){
-        //if (x->signal[SIZE_ARRAY - 1] == 0 && arr_position <= SIZE_ARRAY){ //checks if array is filled. If not then store incoming value to next index //if it breaks replace the bttoom with this
-        if (arr_position >= 0){ //checks if array is filled. If not then store incoming value to next index
-            x->signal[arr_position] = f;
-            arr_position--;
-        }
+    //if (x->signal[SIZE_ARRAY - 1] == 0 && arr_position <= SIZE_ARRAY){ //checks if array is filled. If not then store incoming value to next index //if it breaks replace the bttoom with this
+    if (arr_position >= 0){ //checks if array is filled. If not then store incoming value to next index
+        x->signal[arr_position] = f;
+        arr_position--;
+    }
 
-        else{                                 //If array is filled shift all values by 1 index and store at beginning of array
-            int i;
-            x->flag = 1; //makes it so that LCP result is stored in compared Value;
-            for (i = SIZE_ARRAY - 1; i > 0; i--){
-                x->signal[i]=x->signal[i-1];
-            }
-            x->signal[0] = f;
-            //reverseArray(x); // works
-            //post("Value at last index is %f", x->signal[SIZE_ARRAY-1]);
-            replaceSignal2(x); //replaces the value in signal 2
-            dtw_genMatrix(x); //performs dtw
-            signalMatch(x); //checks is the signal is correct if it is trigger effect
-            //dtw_free(x);
+    else{                                 //If array is filled shift all values by 1 index and store at beginning of array
+        int i;
+        x->flag = 1; //makes it so that LCP result is stored in compared Value;
+        for (i = SIZE_ARRAY - 1; i > 0; i--){
+            x->signal[i]=x->signal[i-1];
         }
+        x->signal[0] = f;
+        //reverseArray(x); // works
+        //post("Value at last index is %f", x->signal[SIZE_ARRAY-1]);
+        replaceSignal2(x); //replaces the value in signal 2
+        dtw_genMatrix(x); //performs dtw
+        signalMatch(x); //checks is the signal is correct if it is trigger effect
+        //dtw_free(x);
     }
 }
 
